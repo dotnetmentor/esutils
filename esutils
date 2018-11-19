@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+
+export ES_UTILS
+export ES_UTILS_VERSION='1.0.0'
+export ES_UTILS_BACKUP_DIRECTORY="${ES_UTILS_BACKUP_DIRECTORY:-/var/lib/eventstore/}"
+export ES_UTILS_BACKUP_BUCKET="${ES_UTILS_BACKUP_BUCKET:-eventstore-backups}"
+export ES_UTILS_BACKUP_REGION="${ES_UTILS_BACKUP_REGION:-eu-central-1}"
+
+export ES_CLI='/etc/eventstore/es-cli'
+export ES_CLI_VERSION='1.5.0'
+
+esutils:install-dependencies () {
+  echo "Installing \"es-cli\" version ${ES_CLI_VERSION:?}"
+  curl -LO https://developers.eventstore.org/downloads/es_cli.linux.${ES_CLI_VERSION:?}.tar.gz
+  tar -xvzf ./es_cli.linux.${ES_CLI_VERSION:?}.tar.gz
+  mv ./es-cli "${ES_CLI:?}"
+  chmod +x "${ES_CLI:?}"
+
+  echo 'Installing "gettext-base" and "uuid-runtime"'
+  apt-get update && apt-get -y install gettext-base uuid-runtime
+}
+
+esutils:install-backup-crontab () {
+  local crondir="/etc/cron.d"
+  local crontab="${crondir:?}/eventstore-backup"
+
+  echo "Adding backup crontab (${crontab:?})"
+  mkdir -p "${crondir:?}" &> /dev/null
+
+  echo "SHELL=/bin/bash
+*/15 * * * * root ${ES_UTILS:?} backup \"latest/es-node-\${HOSTNAME}\" differential 2>&1 | /usr/bin/logger -t esutils-backup-cron
+00 * * * * root ${ES_UTILS:?} backup \"hourly/es-node-\${HOSTNAME}\" 2>&1 | /usr/bin/logger -t esutils-backup-cron
+59 23 * * * root ${ES_UTILS:?} backup \"daily/es-node-\${HOSTNAME}\" 2>&1 | /usr/bin/logger -t esutils-backup-cron
+59 23 * * 0 root ${ES_UTILS:?} backup \"weekly/es-node-\${HOSTNAME}\" 2>&1 | /usr/bin/logger -t esutils-backup-cron
+00 00 1 * * root ${ES_UTILS:?} backup \"monthly/es-node-\${HOSTNAME}\" 2>&1 | /usr/bin/logger -t esutils-backup-cron
+" > ${crontab:?}
+}
+
+esutils:backup () {
+  local backup_prefix
+  local backup_name
+  local differential
+
+  backup_prefix="${1:?'A backup name prefix is required'}"
+  if [[ "${2}" == 'differential' ]]; then
+    differential='-differential'
+    backup_name="${backup_prefix:?}"
+  else
+    backup_name="${backup_prefix:?}-$(date +%Y%m%d-%H%M)"
+  fi
+
+  echo "Initializing backup (${backup_name:?})"
+  record-event 'backup-initialized' "${backup_name:?}"
+
+  echo "Performing backup (${backup_name:?})"
+  if "${ES_CLI:?}" admin s3_backup -databasesource="${ES_UTILS_BACKUP_DIRECTORY:?}" -databasedestination="${backup_name:?}" -s3bucket="${ES_UTILS_BACKUP_BUCKET:?}" -awsregion="${ES_UTILS_BACKUP_REGION:?}" -y "${differential}"; then
+    echo "Backup completed (${backup_name:?})"
+    record-event 'backup-completed' "${backup_name:?}"
+  else
+    echo "Backup failed (${backup_name:?})"
+    record-event 'backup-failed' "${backup_name:?}"
+  fi
+}
+
+esutils:restore () {
+  set -e
+
+  local backup_name="${1}"
+
+  if [[ "${backup_name}" == "" ]]; then
+    echo -n "Enter the name of a backup to restore (s3-bucket=${ES_UTILS_BACKUP_BUCKET:?} region=${ES_UTILS_BACKUP_REGION:?}): "
+    read -r backup_name
+  fi
+
+  echo "Performing restore of backup (${backup_name:?})"
+  "${ES_CLI:?}" admin s3_restore -databasesource="${ES_UTILS_BACKUP_DIRECTORY:?}" -databasedestination="${backup_name:?}" -s3bucket="${ES_UTILS_BACKUP_BUCKET:?}" -awsregion="${ES_UTILS_BACKUP_REGION:?}" -y
+}
+
+record-event () {
+  local event_type="${1:?}"
+  local backup_name="${2:?}"
+  local backup_timestamp="$(date +%Y-%m-%dT%H:%M:%S+00:00)"
+  local backup_host_name="${HOSTNAME:?}"
+  local backup_host_ip="$(ip route get 8.8.8.8 | awk '{print $NF; exit}')"
+  local backup_destination="s3://${ES_UTILS_BACKUP_BUCKET:?} (${ES_UTILS_BACKUP_REGION:?})"
+  curl --silent -d "{
+    \"timestamp\": \"${backup_timestamp:?}\",
+    \"name\": \"${backup_name:?}\",
+    \"host_name\": \"${backup_host_name:?}\",
+    \"host_ip\": \"${backup_host_ip:?}\",
+    \"source\": \"${ES_UTILS_BACKUP_DIRECTORY:?}\",
+    \"destination\": \"${backup_destination:?}\",
+  }
+" "http://localhost:2113/streams/eventstore-backups" -H "Content-Type:application/json" -H "ES-EventType: ${event_type:?}" -H "ES-EventId: $(uuidgen)"
+}
+
+main () {
+  [[ ! -f "${ES_CLI:?}" ]] && esutils:install-dependencies
+  ES_UTILS="$(cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd)/esutils"
+
+  if [[ ${#*} -gt 0 ]]; then
+    # shellcheck disable=SC2086
+    "esutils:${1:?}" ${*:2}
+  else
+    echo "esutils version ${ES_UTILS_VERSION:?} (${ES_UTILS:?})"
+    echo
+    echo "Commands"
+    declare -F | grep 'esutils:' | sed 's/declare -f esutils:/  /g'
+    echo
+    echo "Example usage"
+    echo "  esutils backup \"$(date +%Y-%m-%d)/es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\""
+    echo "  esutils restore \"$(date +%Y-%m-%d)/es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\""
+    echo
+    echo "Environment variables"
+    echo "  ES_UTILS_BACKUP_DIRECTORY      : ${ES_UTILS_BACKUP_DIRECTORY:?}"
+    echo "  ES_UTILS_BACKUP_BUCKET         : ${ES_UTILS_BACKUP_BUCKET:?}"
+    echo "  ES_UTILS_BACKUP_REGION         : ${ES_UTILS_BACKUP_REGION:?}"
+  fi
+}
+
+main "$@"
