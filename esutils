@@ -114,8 +114,6 @@ record-event () {
 main () {
   # shellcheck source=/dev/null
   [[ -f "${ES_UTILS_ENVFILE:?}" ]] && source "${ES_UTILS_ENVFILE:?}"
-
-  [[ ! -f "${ES_CLI:?}" ]] && esutils:install-dependencies
   ES_UTILS="$(cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd)/esutils"
 
   if [[ ${#*} -gt 0 ]]; then
