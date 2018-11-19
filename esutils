@@ -9,6 +9,22 @@ export ES_UTILS_BACKUP_REGION="${ES_UTILS_BACKUP_REGION:-eu-central-1}"
 export ES_CLI='/etc/eventstore/es-cli'
 export ES_CLI_VERSION='1.5.0'
 
+esutils:help () {
+  echo "esutils version ${ES_UTILS_VERSION:?} (${ES_UTILS:?})"
+  echo
+  echo "Commands"
+  declare -F | grep 'esutils:' | sed 's/declare -f esutils:/  /g'
+  echo
+  echo "Example usage"
+  echo "  esutils backup \"$(date +%Y-%m-%d)/es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\""
+  echo "  esutils restore \"$(date +%Y-%m-%d)/es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\""
+  echo
+  echo "Environment variables"
+  echo "  ES_UTILS_BACKUP_DIRECTORY      : ${ES_UTILS_BACKUP_DIRECTORY:?}"
+  echo "  ES_UTILS_BACKUP_BUCKET         : ${ES_UTILS_BACKUP_BUCKET:?}"
+  echo "  ES_UTILS_BACKUP_REGION         : ${ES_UTILS_BACKUP_REGION:?}"
+}
+
 esutils:install-dependencies () {
   echo "Installing \"es-cli\" version ${ES_CLI_VERSION:?}"
   curl -LO https://developers.eventstore.org/downloads/es_cli.linux.${ES_CLI_VERSION:?}.tar.gz
@@ -102,19 +118,7 @@ main () {
     # shellcheck disable=SC2086
     "esutils:${1:?}" ${*:2}
   else
-    echo "esutils version ${ES_UTILS_VERSION:?} (${ES_UTILS:?})"
-    echo
-    echo "Commands"
-    declare -F | grep 'esutils:' | sed 's/declare -f esutils:/  /g'
-    echo
-    echo "Example usage"
-    echo "  esutils backup \"$(date +%Y-%m-%d)/es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\""
-    echo "  esutils restore \"$(date +%Y-%m-%d)/es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\""
-    echo
-    echo "Environment variables"
-    echo "  ES_UTILS_BACKUP_DIRECTORY      : ${ES_UTILS_BACKUP_DIRECTORY:?}"
-    echo "  ES_UTILS_BACKUP_BUCKET         : ${ES_UTILS_BACKUP_BUCKET:?}"
-    echo "  ES_UTILS_BACKUP_REGION         : ${ES_UTILS_BACKUP_REGION:?}"
+    "esutils:help"
   fi
 }
 
