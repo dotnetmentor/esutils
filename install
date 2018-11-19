@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+set -e
+
+declare -x ESUTILS_INSTALLDIR="${ESUTILS_INSTALLDIR:-/usr/local/sbin}"
+
+install () {
+  echo 'Starting installation of "esutils"'
+
+  mkdir -p ~/tmp-esutils
+  mkdir -p "${ESUTILS_INSTALLDIR:?}"
+
+  cd ~/tmp-esutils || exit 1
+
+  echo 'Preparing install of "esutils"'
+  apt-get update && apt-get install unzip -y
+
+  echo 'Installing "esutils"'
+  curl -LJO https://github.com/dotnetmentor/esutils/archive/master.zip
+  unzip -o esutils-master.zip
+
+  cp ./esutils-master/esutils "${ESUTILS_INSTALLDIR:?}/esutils"
+  chmod +x "${ESUTILS_INSTALLDIR:?}/esutils"
+
+  echo 'Installing dependencies for "esutils"'
+  esutils install-dependencies
+
+  echo "Performing cleanup"
+  cd ~ || exit
+  rm -rf ~/tmp-esutils
+  apt-get clean && rm -rf /var/lib/apt/lists/*
+
+  echo "Successfully installed \"esutils\" to ${ESUTILS_INSTALLDIR:?}"
+}
+
+install "$@"
