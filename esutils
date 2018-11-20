@@ -56,10 +56,20 @@ esutils:install-backup-crontab () {
 esutils:backup () {
   local backup_prefix
   local backup_name
+  local backup_label
   local differential
+  local success_url_variable="ES_UTILS_BACKUP_SUCCESS_URL"
+  local failed_url_variable="ES_UTILS_BACKUP_FAILED_URL"
 
   backup_prefix="${1:?'A backup name prefix is required'}"
-  if [[ "${2}" == 'differential' ]]; then
+  backup_label="${2}"
+
+  if [[ "${backup_label}" != "" ]]; then
+    success_url_variable="ES_UTILS_BACKUP_SUCCESS_URL_${backup_label}"
+    failed_url_variable="ES_UTILS_BACKUP_FAILED_URL_${backup_label}"
+  fi
+
+  if [[ "${backup_label}" == 'differential' ]]; then
     differential='-differential'
     backup_name="${backup_prefix:?}"
   else
@@ -73,9 +83,11 @@ esutils:backup () {
   if "${ES_CLI:?}" admin s3_backup -databasesource="${ES_UTILS_BACKUP_DIRECTORY:?}" -databasedestination="${backup_name:?}" -s3bucket="${ES_UTILS_BACKUP_BUCKET:?}" -awsregion="${ES_UTILS_BACKUP_REGION:?}" -y "${differential}"; then
     echo "Backup completed (${backup_name:?})"
     record-event 'backup-completed' "${backup_name:?}"
+    call-url "${!success_url_variable}"
   else
     echo "Backup failed (${backup_name:?})"
     record-event 'backup-failed' "${backup_name:?}"
+    call-url "${!failed_url_variable}"
   fi
 }
 
@@ -109,6 +121,10 @@ record-event () {
     \"destination\": \"${backup_destination:?}\",
   }
 " "http://localhost:2113/streams/eventstore-backups" -H "Content-Type:application/json" -H "ES-EventType: ${event_type:?}" -H "ES-EventId: $(uuidgen)"
+}
+
+call-url () {
+  [[ "${1}" != "" ]] && echo "Calling url (${1:?})" && curl -fsS --retry 3 "${1:?}" && echo
 }
 
 main () {
