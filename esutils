@@ -21,9 +21,11 @@ esutils:help () {
   echo "  esutils restore \"es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\""
   echo
   echo "Environment variables"
+  echo "  ES_CLI_VERSION                 : ${ES_CLI_VERSION:?}"
   echo "  ES_UTILS_BACKUP_DIRECTORY      : ${ES_UTILS_BACKUP_DIRECTORY:?}"
   echo "  ES_UTILS_BACKUP_BUCKET         : ${ES_UTILS_BACKUP_BUCKET:?}"
   echo "  ES_UTILS_BACKUP_REGION         : ${ES_UTILS_BACKUP_REGION:?}"
+  echo "  ES_UTILS_ENVFILE               : ${ES_UTILS_ENVFILE:?}"
 }
 
 esutils:install-dependencies () {
