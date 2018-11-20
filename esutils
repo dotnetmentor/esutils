@@ -17,8 +17,8 @@ esutils:help () {
   declare -F | grep 'esutils:' | sed 's/declare -f esutils:/  /g'
   echo
   echo "Example usage"
-  echo "  esutils backup \"$(date +%Y-%m-%d)/es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\""
-  echo "  esutils restore \"$(date +%Y-%m-%d)/es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\""
+  echo "  esutils backup \"es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\" monthly"
+  echo "  esutils restore \"es-node-${HOSTNAME}/es-backup-$(date +%Y%m%d-%H%M)\""
   echo
   echo "Environment variables"
   echo "  ES_UTILS_BACKUP_DIRECTORY      : ${ES_UTILS_BACKUP_DIRECTORY:?}"
@@ -45,11 +45,11 @@ esutils:install-backup-crontab () {
   mkdir -p "${crondir:?}" &> /dev/null
 
   echo "SHELL=/bin/bash
-*/15 * * * * root ${ES_UTILS:?} backup \"latest/es-node-\${HOSTNAME}\" differential 2>&1 | /usr/bin/logger -t esutils-backup-cron
-00 * * * * root ${ES_UTILS:?} backup \"hourly/es-node-\${HOSTNAME}\" 2>&1 | /usr/bin/logger -t esutils-backup-cron
-59 23 * * * root ${ES_UTILS:?} backup \"daily/es-node-\${HOSTNAME}\" 2>&1 | /usr/bin/logger -t esutils-backup-cron
-59 23 * * 0 root ${ES_UTILS:?} backup \"weekly/es-node-\${HOSTNAME}\" 2>&1 | /usr/bin/logger -t esutils-backup-cron
-00 00 1 * * root ${ES_UTILS:?} backup \"monthly/es-node-\${HOSTNAME}\" 2>&1 | /usr/bin/logger -t esutils-backup-cron
+*/15 * * * * root ${ES_UTILS:?} backup \"es-node-\${HOSTNAME}\" latest differential 2>&1 | /usr/bin/logger -t esutils-backup-cron
+00 * * * * root ${ES_UTILS:?} backup \"es-node-\${HOSTNAME}\" hourly 2>&1 | /usr/bin/logger -t esutils-backup-cron
+59 23 * * * root ${ES_UTILS:?} backup \"es-node-\${HOSTNAME}\" daily 2>&1 | /usr/bin/logger -t esutils-backup-cron
+59 23 * * 0 root ${ES_UTILS:?} backup \"es-node-\${HOSTNAME}\" weekly 2>&1 | /usr/bin/logger -t esutils-backup-cron
+00 00 1 * * root ${ES_UTILS:?} backup \"es-node-\${HOSTNAME}\" monthly 2>&1 | /usr/bin/logger -t esutils-backup-cron
 " > ${crontab:?}
 }
 
@@ -58,22 +58,21 @@ esutils:backup () {
   local backup_name
   local backup_label
   local differential
-  local success_url_variable="ES_UTILS_BACKUP_SUCCESS_URL"
-  local failed_url_variable="ES_UTILS_BACKUP_FAILED_URL"
+  local success_url_variable
+  local failed_url_variable
 
   backup_prefix="${1:?'A backup name prefix is required'}"
-  backup_label="${2}"
+  backup_label="${2:?'A backup label must be specified'}"
+  differential="${3}"
 
-  if [[ "${backup_label}" != "" ]]; then
-    success_url_variable="ES_UTILS_BACKUP_SUCCESS_URL_${backup_label}"
-    failed_url_variable="ES_UTILS_BACKUP_FAILED_URL_${backup_label}"
-  fi
+  success_url_variable="ES_UTILS_BACKUP_SUCCESS_URL_${backup_label}"
+  failed_url_variable="ES_UTILS_BACKUP_FAILED_URL_${backup_label}"
 
-  if [[ "${backup_label}" == 'differential' ]]; then
+  if [[ "${differential}" == 'differential' ]]; then
     differential='-differential'
-    backup_name="${backup_prefix:?}"
+    backup_name="${backup_label}/${backup_prefix:?}"
   else
-    backup_name="${backup_prefix:?}-$(date +%Y%m%d-%H%M)"
+    backup_name="${backup_label}/${backup_prefix:?}-$(date +%Y%m%d-%H%M)"
   fi
 
   echo "Initializing backup (${backup_name:?})"
