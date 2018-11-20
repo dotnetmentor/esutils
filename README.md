@@ -10,6 +10,7 @@ Utility bash script for Eventstore.
 ```bash
 export ESUTILS_INSTALLDIR='/usr/local/sbin'
 source <(curl -s https://raw.githubusercontent.com/dotnetmentor/esutils/master/install)
+${ESUTILS_INSTALLDIR}/esutils install-dependencies
 ```
 
 ## Using
