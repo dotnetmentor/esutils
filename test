@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+docker rm -f esutils-test &> /dev/null || true
+docker build "$@" -t dotnetmentor/esutils:latest .
+
+if [[ -f ./.env ]]; then
+  source ./.env
+fi
+
+docker run -d \
+  --name esutils-test \
+  -p 2113:2113 \
+  -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:?}" \
+  -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:?}" \
+  -e ES_UTILS_BACKUP_BUCKET="eventstore-backups-test" \
+  dotnetmentor/esutils:latest
+
+docker exec -it esutils-test bash
