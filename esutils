@@ -30,7 +30,7 @@ esutils:help () {
 
 esutils:install-dependencies () {
   echo "Installing \"es-cli\" version ${ES_CLI_VERSION:?}"
-  curl -LO https://developers.eventstore.org/downloads/es_cli.linux.${ES_CLI_VERSION:?}.tar.gz
+  curl --fail -LO https://developers.eventstore.org/downloads/es_cli.linux.${ES_CLI_VERSION:?}.tar.gz
   tar -xvzf ./es_cli.linux.${ES_CLI_VERSION:?}.tar.gz
   mv ./es-cli "${ES_CLI:?}"
   chmod +x "${ES_CLI:?}"

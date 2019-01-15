@@ -16,7 +16,7 @@ install () {
   apt-get update && apt-get install unzip -y
 
   echo 'Installing "esutils"'
-  curl -LJO https://github.com/dotnetmentor/esutils/archive/master.zip
+  curl --fail -LJO https://github.com/dotnetmentor/esutils/archive/master.zip
   unzip -o esutils-master.zip
 
   cp ./esutils-master/esutils "${ESUTILS_INSTALLDIR:?}/esutils"
